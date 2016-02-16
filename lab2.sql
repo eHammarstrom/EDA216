@@ -40,10 +40,11 @@ CREATE TABLE reservations (
 );
 
 INSERT INTO users VALUES("per123", "Per Andersson", NULL, NULL);
+INSERT INTO users VALUES("per1", "Per Banandersson", NULL, NULL);
 # INSERT INTO users VALUES("per123", "Per Svensson", NULL, NULL);
-INSERT INTO theaters VALUES("SF 1", 72);
+INSERT INTO theaters VALUES("SF 1", 5);
 # INSERT INTO theaters VALUES("SF 1", 32);
-INSERT INTO theaters VALUES("SF 2", 201);
+INSERT INTO theaters VALUES("SF 2", 100);
 INSERT INTO movies VALUES("The Revenant");
 INSERT INTO movies VALUES("Star Wars");
 INSERT INTO performances VALUES("The Revenant", "1984-01-01", "SF 2", NULL);

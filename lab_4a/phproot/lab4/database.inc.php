@@ -14,7 +14,7 @@ class Database {
 	private $password;
 	private $database;
 	private $conn;
-	
+
 	/**
 	 * Constructs a database object for the specified user.
 	 */
@@ -24,7 +24,7 @@ class Database {
 		$this->password = $password;
 		$this->database = $database;
 	}
-	
+
 	/** 
 	 * Opens a connection to the database, using the earlier specified user
 	 * name and password.
@@ -36,7 +36,7 @@ class Database {
 	public function openConnection() {
 		try {
 			$this->conn = new PDO("mysql:host=$this->host;dbname=$this->database", 
-					$this->userName,  $this->password);
+				$this->userName,  $this->password);
 			$this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		} catch (PDOException $e) {
 			$error = "Connection error: " . $e->getMessage();
@@ -46,7 +46,7 @@ class Database {
 		}
 		return true;
 	}
-	
+
 	/**
 	 * Closes the connection to the database.
 	 */
@@ -63,7 +63,7 @@ class Database {
 	public function isConnected() {
 		return isset($this->conn);
 	}
-	
+
 	/**
 	 * Execute a database query (select).
 	 *
@@ -82,7 +82,7 @@ class Database {
 		}
 		return $result;
 	}
-	
+
 	/**
 	 * Execute a database update (insert/delete/update).
 	 *
@@ -90,10 +90,45 @@ class Database {
 	 * @param $param Array with parameters 
 	 * @return The number of affected rows
 	 */
-	private function executeUpdate($query, $param = null) {
-		// ...
+	private function reservation($query, $date, $movieName, $userId) {
+		try {
+			$tActionStart = $this->conn->prepare("START TRANSACTION");
+			$tActionStart->execute();
+
+			$stmt = $this->conn->prepare($query);
+			$stmt->execute(array($date, $movieName, $userId));
+
+			$lockQuery = "SELECT seatsLeft"
+				. " FROM performances"
+				. " WHERE movieName = ? AND date = ? FOR UPDATE";
+			$lock = $this->conn->prepare($lockQuery);
+			$lock->execute(array($movieName, $date));
+			$seats = $lock->fetchAll();
+
+			$lockUpdateQuery = "UPDATE performances"
+				. " SET seatsLeft = seatsLeft - 1"
+				. " WHERE movieName = ? AND date = ?";
+			$updateSeats = $this->conn->prepare($lockUpdateQuery);
+			$updateSeats->execute(array($movieName, $date));
+
+			if ($seats[0]['seatsLeft'] > 0) {
+				$tActionCommit = $this->conn->prepare("COMMIT");
+				$tActionCommit->execute();
+				$result = true;
+			} else {
+				$tActionRollback = $this->conn->prepare("ROLLBACK");
+				$tActionRollback->execute();
+				$result = false;
+			}
+
+			return $result;
+
+		} catch (PDOException $e) {
+			$error = "*** Internal error: " . $e->getMessage() . "<p>" . $query . "</p>";
+			die($error);
+		}
 	}
-	
+
 	/**
 	 * Check if a user with the specified user id exists in the database.
 	 * Queries the Users database table.
@@ -102,7 +137,7 @@ class Database {
 	 * @return true if the user exists, false otherwise.
 	 */
 	public function userExists($userId) {
-		$sql = "select userId from Users where userId = ?";
+		$sql = "SELECT username FROM users WHERE username = ?";
 		$result = $this->executeQuery($sql, array($userId));
 		return count($result) == 1; 
 	}
@@ -110,5 +145,38 @@ class Database {
 	/*
 	 * *** Add functions ***
 	 */
+
+	public function getMovieNames() {
+		$sql = "SELECT name FROM movies";
+		$result = $this->executeQuery($sql);
+		return $result;
+	}
+
+	public function getMovieDates($movieName) {
+		$sql = "SELECT date FROM performances WHERE moviename = ?";
+		$result = $this->executeQuery($sql, array($movieName));
+		return $result;
+	}
+
+	public function getPerformance($movieName, $date) {
+		$sql = "SELECT * FROM performances WHERE moviename = ? AND date = ?";
+		$result = $this->executeQuery($sql, array($movieName, $date));
+		return $result;
+	}
+
+	public function makeReservation($movieName, $date, $userId) {
+		$sql = "INSERT INTO reservations(date, movieName, userName)"
+			. " VALUES (?, ?, ?)";
+		$result = $this->reservation($sql, $date, $movieName, $userId);
+		return $result;
+	}
+	
+	public function getLastReservation($movieName, $date, $userId) {
+		$sql = "SELECT resnbr FROM reservations"
+			. " WHERE movieName = ? AND date = ? AND username = ?"
+			. " ORDER BY resnbr DESC";
+		$result = $this->executeQuery($sql, array($movieName, $date, $userId));
+		return $result[0]['resnbr'];
+	}
 }
 ?>
